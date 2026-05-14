@@ -261,15 +261,28 @@ function updSaveBtn(){
 
 function togExp(eid){
   S.wExp=S.wExp===eid?null:eid;
-  document.querySelectorAll('.ex-body').forEach(el=>{el.style.display=el.dataset.id===S.wExp?'block':'none';});
-  document.querySelectorAll('.ex-chev').forEach(el=>{el.textContent=el.dataset.id===S.wExp?'▲':'▼';});
+  const exs=S.data.exercises[S.routineId]||[];
+  const isA=RM[S.routineId]?.day==='A';
+  const lastSess=[...S.data.sessions].filter(s=>s.routineId===S.routineId).sort((a,b)=>new Date(b.date)-new Date(a.date))[0];
+  const container=document.getElementById('ex-list');
+  if(container){
+    container.innerHTML=exs.map((ex,i)=>mkEx(ex,i,lastSess,isA)).join('');
+  }
+}
+
+function reRenderExList(){
+  const exs=S.data.exercises[S.routineId]||[];
+  const isA=RM[S.routineId]?.day==='A';
+  const lastSess=[...S.data.sessions].filter(s=>s.routineId===S.routineId).sort((a,b)=>new Date(b.date)-new Date(a.date))[0];
+  const container=document.getElementById('ex-list');
+  if(container) container.innerHTML=exs.map((ex,i)=>mkEx(ex,i,lastSess,isA)).join('');
 }
 
 function addSet(eid){
   const sets=S.wRes[eid]; const last=sets[sets.length-1]||{w:'0',r:'10'};
-  sets.push({w:last.w,r:last.r,done:false}); reEx(eid);
+  sets.push({w:last.w,r:last.r,done:false}); reRenderExList();
 }
-function remSet(eid){if(S.wRes[eid].length<=1)return;S.wRes[eid].pop();reEx(eid);}
+function remSet(eid){if(S.wRes[eid].length<=1)return;S.wRes[eid].pop();reRenderExList();}
 
 function reEx(eid){
   const exs=S.data.exercises[S.routineId]||[];
@@ -530,7 +543,7 @@ function vWorkout(){
     +'<div id="done-info" style="font-size:10px;color:var(--text3);text-align:center">'+(S.ws==='idle'?'미시작 · 무게/세트 자유롭게 수정 가능':n+' / '+exs.length+' 완료')+'</div>'
     +'</div>'
     // Exercise list
-    +'<div style="padding:16px 20px">'+exCards+'</div>'
+    +'<div id="ex-list" style="padding:16px 20px">'+exCards+'</div>'
     // Pause overlay
     +'<div id="pause-ov" class="overlay" style="display:none" onclick="hidePause()">'
     +'<div class="sheet" onclick="event.stopPropagation()">'
