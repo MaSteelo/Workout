@@ -502,6 +502,100 @@ function delRoutine(name){
   openLoadRoutine();
 }
 
+// 종목 순서 변경
+function moveEx(eid, dir){
+  const exs=S.data.exercises[S.routineId]||[];
+  const i=exs.findIndex(e=>e.id===eid);
+  if(i<0)return;
+  const ti=dir==='up'?i-1:i+1;
+  if(ti<0||ti>=exs.length)return;
+  // swap
+  const tmp=exs[i]; exs[i]=exs[ti]; exs[ti]=tmp;
+  save(S.data);
+  reRenderExList();
+}
+
+// 종목 직접 추가 모달
+function openAddEx(){
+  const old=document.getElementById('ae-ov'); if(old)old.remove();
+  const div=document.createElement('div');
+  div.id='ae-ov'; div.className='overlay';
+  div.onclick=function(e){if(e.target===div)div.remove();};
+  div.innerHTML='<div class="sheet" style="max-height:90vh;display:flex;flex-direction:column" onclick="event.stopPropagation()">'
+    +'<div class="handle"></div>'
+    +'<div style="padding:12px 20px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between">'
+    +'<span style="font-weight:700;font-size:16px">종목 추가</span>'
+    +'<button onclick="document.getElementById(\'ae-ov\').remove()" style="background:none;border:none;color:var(--text2);font-size:22px;line-height:1">×</button>'
+    +'</div>'
+    +'<div style="flex:1;overflow-y:auto;padding:20px">'
+    // 종목명
+    +'<div style="margin-bottom:16px">'
+    +'<div style="font-size:11px;color:var(--text3);margin-bottom:6px;letter-spacing:.1em">종목 이름 *</div>'
+    +'<input id="ae-name" type="text" placeholder="예: Bench Press" style="width:100%;padding:10px 12px;background:rgba(10,10,10,.6);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:14px;outline:none">'
+    +'</div>'
+    // 맨몸 여부
+    +'<div style="margin-bottom:16px;display:flex;align-items:center;gap:10px">'
+    +'<input type="checkbox" id="ae-bw" style="width:18px;height:18px;cursor:pointer">'
+    +'<label for="ae-bw" style="font-size:14px;color:var(--text2);cursor:pointer">맨몸 운동 (체중)</label>'
+    +'</div>'
+    // 세트 / 횟수
+    +'<div style="display:flex;gap:12px;margin-bottom:16px">'
+    +'<div style="flex:1"><div style="font-size:11px;color:var(--text3);margin-bottom:6px">세트 수</div>'
+    +'<input id="ae-sets" type="number" inputmode="numeric" value="3" min="1" max="10" style="width:100%;padding:10px;background:rgba(10,10,10,.6);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:16px;font-weight:600;text-align:center;font-family:var(--mono);outline:none"></div>'
+    +'<div style="flex:1"><div style="font-size:11px;color:var(--text3);margin-bottom:6px">횟수 (reps)</div>'
+    +'<input id="ae-reps" type="number" inputmode="numeric" value="10" min="1" style="width:100%;padding:10px;background:rgba(10,10,10,.6);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:16px;font-weight:600;text-align:center;font-family:var(--mono);outline:none"></div>'
+    +'</div>'
+    // 기본 중량 / 목표 중량
+    +'<div id="ae-weight-section">'
+    +'<div style="display:flex;gap:12px;margin-bottom:8px">'
+    +'<div style="flex:1"><div style="font-size:11px;color:var(--text3);margin-bottom:6px">기본 중량 (kg)</div>'
+    +'<input id="ae-basew" type="number" inputmode="decimal" step="0.5" value="0" style="width:100%;padding:10px;background:rgba(10,10,10,.6);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:16px;font-weight:600;text-align:center;font-family:var(--mono);outline:none"></div>'
+    +'<div style="flex:1"><div style="font-size:11px;color:var(--text3);margin-bottom:6px">목표 중량 (kg)</div>'
+    +'<input id="ae-targetw" type="number" inputmode="decimal" step="0.5" value="0" style="width:100%;padding:10px;background:rgba(10,10,10,.6);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:16px;font-weight:600;text-align:center;font-family:var(--mono);outline:none"></div>'
+    +'</div>'
+    +'<div style="font-size:10px;color:var(--text3);margin-bottom:16px">점진적 과부하: 기본 중량에서 시작해 목표 중량으로 늘려가요</div>'
+    +'</div>'
+    // 마무리 운동 여부
+    +'<div style="margin-bottom:20px;display:flex;align-items:center;gap:10px">'
+    +'<input type="checkbox" id="ae-fin" style="width:18px;height:18px;cursor:pointer">'
+    +'<label for="ae-fin" style="font-size:14px;color:var(--text2);cursor:pointer">마무리 운동으로 표시</label>'
+    +'</div>'
+    +'<button onclick="addExDirect()" style="width:100%;padding:14px;background:var(--lime);color:#0a0a0a;border:none;border-radius:12px;font-size:15px;font-weight:700">추가하기</button>'
+    +'</div>'
+    +'</div>';
+  document.body.appendChild(div);
+  // 맨몸 체크 시 중량 섹션 숨기기
+  document.getElementById('ae-bw').onchange=function(){
+    document.getElementById('ae-weight-section').style.display=this.checked?'none':'block';
+  };
+}
+
+function addExDirect(){
+  const name=(document.getElementById('ae-name').value||'').trim();
+  if(!name){ alert('종목 이름을 입력해주세요.'); return; }
+  const bw=document.getElementById('ae-bw').checked;
+  const sets=parseInt(document.getElementById('ae-sets').value)||3;
+  const reps=parseInt(document.getElementById('ae-reps').value)||10;
+  const baseW=bw?0:(parseFloat(document.getElementById('ae-basew').value)||0);
+  const targetW=bw?0:(parseFloat(document.getElementById('ae-targetw').value)||baseW);
+  const fin=document.getElementById('ae-fin').checked;
+  const newEx={
+    id:'cust_'+Date.now(),
+    name, sets, reps, baseW, targetW,
+    targetCount:1, bw, fin,
+    cat:['chest'], // 기본 카테고리 (나중에 대체 시 변경 가능)
+  };
+  if(!S.data.exercises[S.routineId])S.data.exercises[S.routineId]=[];
+  S.data.exercises[S.routineId].push(newEx);
+  // 세트 초기화
+  const p=plan(newEx);
+  S.wRes[newEx.id]=p.map(w=>({w:String(w),r:String(reps),done:false}));
+  S.wExp=newEx.id;
+  save(S.data);
+  const o=document.getElementById('ae-ov'); if(o)o.remove();
+  reRenderExList(); updCount(); updSaveBtn();
+}
+
 function updSetRow(eid,idx){
   const row=document.getElementById('sr-'+eid+'-'+idx); if(!row)return;
   const s=S.wRes[eid][idx];
@@ -748,6 +842,10 @@ function mkEx(ex,idx,lastSess,isA){
     +'</div>'
     +'</button>'
     +'<button id="sc-'+ex.id+'" onclick="openSwap(\''+ex.id+'\')" style="background:none;border:none;padding:8px;color:'+(swap?'var(--amber)':'var(--text3)')+';font-size:16px">⇄</button>'
+    +'<div style="display:flex;flex-direction:column;gap:1px">'
+    +'<button onclick="moveEx(\''+ex.id+'\',\'up\')" style="background:none;border:none;padding:3px 6px;color:var(--text3);font-size:11px;line-height:1" '+(idx===0?'disabled style="opacity:.2"':'')+'>▲</button>'
+    +'<button onclick="moveEx(\''+ex.id+'\',\'down\')" style="background:none;border:none;padding:3px 6px;color:var(--text3);font-size:11px;line-height:1">▼</button>'
+    +'</div>'
     +'<button onclick="togExp(\''+ex.id+'\')" style="background:none;border:none;padding:8px;color:var(--text3);display:flex;align-items:center;gap:4px">'
     +'<span id="cnt-'+ex.id+'" style="font-size:10px;font-family:var(--mono)">'+done+'/'+sets.length+'</span>'
     +'<span class="ex-chev" data-id="'+ex.id+'" style="font-size:10px">'+(exp?'▲':'▼')+'</span>'
@@ -846,7 +944,10 @@ function vWorkout(){
     +'<button onclick="saveRoutine()" style="flex:1;padding:10px;border:1px solid var(--border);background:var(--bg2);color:var(--text2);border-radius:10px;font-size:12px;font-weight:600">💾 루틴 저장</button>'
     +'<button onclick="openLoadRoutine()" style="flex:1;padding:10px;border:1px solid var(--border);background:var(--bg2);color:var(--text2);border-radius:10px;font-size:12px;font-weight:600">📂 루틴 불러오기</button>'
     +'</div>'
-    +'<button onclick="openExLib()" style="width:100%;padding:10px;border:1px solid var(--border);background:var(--bg2);color:var(--text2);border-radius:10px;font-size:12px;font-weight:600">➕ 라이브러리에서 종목 추가</button>'
+    +'<div style="display:flex;gap:8px;margin-top:8px">'
+    +'<button onclick="openAddEx()" style="flex:1;padding:10px;border:1px solid var(--border);background:var(--bg2);color:var(--text2);border-radius:10px;font-size:12px;font-weight:600">✏️ 종목 직접 추가</button>'
+    +'<button onclick="openExLib()" style="flex:1;padding:10px;border:1px solid var(--border);background:var(--bg2);color:var(--text2);border-radius:10px;font-size:12px;font-weight:600">📂 라이브러리</button>'
+    +'</div>'
     +'</div>'
     // Pause overlay
     +'<div id="pause-ov" class="overlay" style="display:none" onclick="hidePause()">'
