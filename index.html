@@ -240,15 +240,14 @@ function pauseW(){if(S.wRun)S.wAcc+=Math.floor((Date.now()-S.wRun)/1000);S.ws='p
 function resumeW(){S.wRun=Date.now();S.ws='running';updCtrl();}
 
 function updCtrl(){
-  const a=document.getElementById('ctrl-btn'); if(!a)return;
-  const isA=RM[S.routineId]?.day==='A';
-  const c=isA?'var(--lime)':'var(--amber)';
-  if(S.ws==='idle') a.innerHTML=`<button onclick="startW()" style="flex:1;background:${c};color:#0a0a0a;border:none;padding:10px;border-radius:10px;font-weight:700;font-size:14px">▶ 운동 시작</button>`;
-  else if(S.ws==='running') a.innerHTML=`<button onclick="showPause()" style="flex:1;background:var(--bg3);color:var(--text);border:none;padding:10px;border-radius:10px;font-weight:700;font-size:14px">⏸ 일시정지</button>`;
-  else a.innerHTML=`<button onclick="resumeW()" style="flex:1;background:${c};color:#0a0a0a;border:none;padding:10px;border-radius:10px;font-weight:700;font-size:14px">▶ 재개</button>`;
+  const btn=document.getElementById('pause-small-btn'); if(!btn)return;
+  btn.textContent=S.ws==='running'?'⏸':'▶';
 }
 
-function showPause(){document.getElementById('pause-ov').style.display='flex';}
+function showPause(){
+  if(S.ws==='idle') startW();
+  document.getElementById('pause-ov').style.display='flex';
+}
 function hidePause(){const o=document.getElementById('pause-ov');if(o)o.style.display='none';}
 function stopGo(){hidePause();go('home');}
 
@@ -614,12 +613,7 @@ function updSetRow(eid,idx){
   if(cnt){const sets=S.wRes[eid];cnt.textContent=sets.filter(x=>x.done).length+'/'+sets.length;}
 }
 
-function updCount(){
-  const el=document.getElementById('done-info'); if(!el)return;
-  const exs=S.data.exercises[S.routineId]||[];
-  const n=Object.values(S.wRes).filter(s=>s.some(x=>x.done)).length;
-  el.textContent=n+' / '+exs.length+' 완료';
-}
+function updCount(){ /* done-info 제거됨 */ }
 
 function updSaveBtn(){
   const btn=document.getElementById('save-btn'); if(!btn)return;
@@ -744,6 +738,8 @@ function revSwap(eid){
 }
 
 function doSave(){
+  const hasDone=Object.values(S.wRes).some(s=>s.some(x=>x.done));
+  if(!hasDone){ if(!confirm('완료된 세트가 없어요. 그래도 저장할까요?')) return; }
   const sess={id:'s_'+Date.now(),date:new Date().toISOString(),routineId:S.routineId,durationSec:S.wEl,results:{},swaps:{}};
   const exs=S.data.exercises[S.routineId]||[];
   const newEx=JSON.parse(JSON.stringify(S.data.exercises));
@@ -918,9 +914,6 @@ function vWorkout(){
   const has=Object.values(S.wRes).some(s=>s.some(x=>x.done));
   const lastSess=[...S.data.sessions].filter(s=>s.routineId===S.routineId).sort((a,b)=>new Date(b.date)-new Date(a.date))[0];
   const n=Object.values(S.wRes).filter(s=>s.some(x=>x.done)).length;
-  const ctrlBtn=S.ws==='idle'?'<button onclick="startW()" style="flex:1;background:'+ac+';color:#0a0a0a;border:none;padding:10px;border-radius:10px;font-weight:700;font-size:14px">▶ 운동 시작</button>'
-    :S.ws==='running'?'<button onclick="showPause()" style="flex:1;background:var(--bg3);color:var(--text);border:none;padding:10px;border-radius:10px;font-weight:700;font-size:14px">⏸ 일시정지</button>'
-    :'<button onclick="resumeW()" style="flex:1;background:'+ac+';color:#0a0a0a;border:none;padding:10px;border-radius:10px;font-weight:700;font-size:14px">▶ 재개</button>';
   const exCards=exs.map((ex,i)=>mkEx(ex,i,lastSess,isA)).join('');
 
   document.getElementById('app').innerHTML='<div style="padding-bottom:48px">'
@@ -931,22 +924,28 @@ function vWorkout(){
     +'<span style="font-size:17px;font-weight:700;flex:1">'+esc(routine.part)+'</span>'
     +'<span style="font-size:11px;color:var(--text3);font-family:var(--mono)">'+fd(new Date())+'</span>'
     +'</div>'
-    // 휴식 타이머 (작게)
-    +'<div id="t-rbox" style="border:1px solid var(--border);background:var(--bg2);border-radius:12px;padding:8px 14px;margin-bottom:8px;display:flex;align-items:center;justify-content:space-between">'
-    +'<div style="display:flex;align-items:center;gap:8px">'
-    +'<span style="font-size:13px">⏱</span>'
-    +'<span style="font-size:9px;letter-spacing:.3em;color:var(--text3)">휴식</span>'
-    +'<div id="t-rest" style="font-family:var(--mono);font-size:28px;font-weight:700;line-height:1;color:var(--bg4)">00:00</div>'
-    +'</div>'
-    +'<div style="display:flex;align-items:center;gap:8px">'
-    +'<span>🕐</span>'
-    +'<div id="t-el" style="font-size:13px;font-weight:700;font-family:var(--mono);color:var(--text3)">'+ft(S.wEl)+'</div>'
+    // 휴식 타이머 (크게 48px)
+    +'<div id="t-rbox" style="border:2px solid var(--border);background:var(--bg2);border-radius:16px;padding:10px 16px;margin-bottom:8px">'
+    +'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:2px">'
+    +'<div style="display:flex;align-items:center;gap:6px"><span style="font-size:13px">⏱</span><span style="font-size:9px;letter-spacing:.3em;color:var(--text3)">휴식 시간</span></div>'
     +'<button onclick="S.wRest=null;S.wRS=0;" style="background:none;border:none;font-size:11px;color:var(--amber)">정지</button>'
     +'</div>'
+    +'<div id="t-rest" style="font-family:var(--mono);font-size:48px;font-weight:700;line-height:1;color:var(--bg4)">00:00</div>'
     +'</div>'
-    // 운동 시작 / 일시정지 버튼
-    +'<div id="ctrl-btn" style="display:flex">'+ctrlBtn+'</div>'
-    +'<div id="done-info" style="font-size:10px;color:var(--text3);text-align:center;margin-top:6px">'+n+' / '+exs.length+' 완료</div>'
+    // 하단 행: 운동완료 버튼(좌) + 전체운동시간+일시정지(우) 2등분
+    +'<div style="display:flex;gap:8px;margin-bottom:6px">'
+    // 운동완료 버튼 (일시정지 팝업 트리거)
+    +'<button onclick="doSave()" id="ctrl-btn" style="flex:1;background:'+ac+';color:#0a0a0a;border:none;padding:12px;border-radius:12px;font-weight:700;font-size:15px">운동 완료</button>'
+    // 전체운동시간 + 일시정지 작은 버튼
+    +'<div style="flex:1;display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:var(--bg2);border:1px solid var(--border);border-radius:12px">'
+    +'<div style="display:flex;align-items:center;gap:6px">'
+    +'<span style="font-size:13px">🕐</span>'
+    +'<div><div style="font-size:9px;color:var(--text3);letter-spacing:.1em">운동 시간</div>'
+    +'<div id="t-el" style="font-size:20px;font-weight:700;font-family:var(--mono);color:var(--text3)">'+ft(S.wEl)+'</div>'
+    +'</div></div>'
+    +'<button id="pause-small-btn" onclick="S.ws===\'running\'?pauseW():resumeW()" style="background:var(--bg3);border:none;border-radius:8px;padding:6px 10px;color:var(--text2);font-size:16px">'+(S.ws==='running'?'⏸':'▶')+'</button>'
+    +'</div>'
+    +'</div>'
     +'</div>'
     // Exercise list
     +'<div id="ex-list" style="padding:16px 20px">'+exCards+'</div>'
