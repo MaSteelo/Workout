@@ -800,20 +800,34 @@ function mkEx(ex,idx,lastSess,isA){
   const acSol=isA?'var(--lime)':'var(--amber)';
   const bdColor=allDone?acBd:(swap?'rgba(251,191,36,.3)':'var(--border)');
 
+  // 원래 종목의 지난 기록: 해당 종목이 대체 없이 진행된 가장 최근 세션
+  const allSessions=[...S.data.sessions]
+    .filter(s=>s.routineId===S.routineId)
+    .sort((a,b)=>new Date(b.date)-new Date(a.date));
+
+  // 원래 종목 기록: swap 없이 진행한 세션
+  const origSess=allSessions.find(s=>s.results?.[ex.id]&&!s.swaps?.[ex.id]);
+  // 대체 종목 기록: 현재 swap 이름과 일치하는 대체 기록
+  const swapSess=swap?allSessions.find(s=>s.swaps?.[ex.id]?.name===swap.name&&s.results?.[ex.id]):null;
+
+  // 현재 화면에서 보여줄 지난 기록
+  const refSess=swap?swapSess:origSess;
+  const lr=refSess?.results?.[ex.id]||null;
+
   let lastH='';
-  const lr=!swap?lastSess?.results?.[ex.id]:null;
   if(lr){
     const p=plan(ex);
     const items=lr.map((s,i)=>{const ok=!s.fail&&s.weight>=(p[i]??ex.targetW)&&s.reps>=ex.reps;const failed=s.fail;return '<span style="padding:2px 6px;border-radius:4px;font-size:11px;font-family:var(--mono);background:'+(failed?'rgba(251,113,133,.18)':ok?'rgba(110,231,183,.1)':'rgba(251,113,133,.1)')+';color:'+(failed||!ok?'var(--rose)':'var(--emerald)')+'">'+(failed?'✕ ':'')+( ex.bw?s.reps+'회':s.weight+'×'+s.reps)+'</span>';}).join('');
-    lastH='<div style="margin:12px 0;padding:8px 12px;background:rgba(10,10,10,.6);border:1px solid rgba(38,38,38,.6);border-radius:8px"><div style="font-size:9px;letter-spacing:.2em;color:var(--text3);margin-bottom:6px">지난 기록 · '+ago(lastSess.date)+'</div><div style="display:flex;flex-wrap:wrap;gap:6px">'+items+'</div></div>';
+    lastH='<div style="margin:12px 0;padding:8px 12px;background:rgba(10,10,10,.6);border:1px solid rgba(38,38,38,.6);border-radius:8px">'
+      +'<div style="font-size:9px;letter-spacing:.2em;color:var(--text3);margin-bottom:6px">'
+      +(swap?esc(swap.name)+' 기록':' 지난 기록')+' · '+ago(refSess.date)
+      +'</div><div style="display:flex;flex-wrap:wrap;gap:6px">'+items+'</div></div>';
   }
 
   let bodyH='<div class="ex-body" data-id="'+ex.id+'" style="'+(exp?'':'display:none')+';padding:12px 16px 16px;border-top:1px solid var(--border)">';
   if(exp){
     bodyH+=lastH;
     if(swap)bodyH+='<div style="margin:12px 0;padding:8px 12px;background:rgba(251,191,36,.05);border:1px solid rgba(251,191,36,.2);border-radius:8px;font-size:11px;color:rgba(253,224,171,.8)">원래 종목 <strong style="color:var(--amber)">'+esc(ex.name)+'</strong> 대신 진행 중.</div>';
-    const wasSwap=lastSess?.swaps?.[ex.id];
-    if(!swap&&wasSwap&&!lr)bodyH+='<div style="margin:12px 0;padding:8px 12px;background:rgba(10,10,10,.6);border:1px solid var(--border);border-radius:8px;font-size:11px;color:var(--text3)">지난 기록은 다른 종목으로 진행했어요 ('+esc(wasSwap.name)+')</div>';
     // 훈련법 버튼
     bodyH+='<div style="margin:12px 0"><div style="font-size:9px;letter-spacing:.2em;color:var(--text3);margin-bottom:6px">훈련법 (입력 중량 기준 자동 세팅)</div>'
       +'<div style="display:flex;gap:6px;flex-wrap:wrap">'
