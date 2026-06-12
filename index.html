@@ -317,18 +317,22 @@ function saveEx(eid){
   const baseName=swap?swap.name:ex.name;
   const name=prompt('저장할 종목 이름:', baseName);
   if(!name||!name.trim())return;
-  // 현재 화면의 세트/중량/횟수 스냅샷도 같이 저장
   const sets=S.wRes[eid]||[];
+  // 실제 화면의 무게 기준으로 baseW/targetW 산출
+  const ws=sets.map(s=>parseFloat(s.w)||0).filter(w=>w>0);
+  const actualBaseW=ws.length?ws[0]:(ex.bw?0:ex.baseW);
+  const actualTargetW=ws.length?ws[ws.length-1]:(ex.bw?0:ex.targetW);
+  const actualReps=sets.length?(parseInt(sets[0]?.r)||ex.reps):ex.reps;
   if(!S.data.savedExercises)S.data.savedExercises={};
   S.data.savedExercises[name.trim()]={
     name:name.trim(),
     machine:ex.machine,
     sub:ex.sub,
     cat:ex.cat||[],
-    sets:ex.sets,
-    reps:ex.reps,
-    baseW:ex.baseW,
-    targetW:ex.targetW,
+    sets:sets.length||ex.sets,
+    reps:actualReps,
+    baseW:actualBaseW,
+    targetW:actualTargetW,
     targetCount:ex.targetCount,
     bw:ex.bw,
     drop:ex.drop,
@@ -420,13 +424,10 @@ function delSavedEx(name){
 function saveRoutine(){
   const name=prompt('저장할 루틴 이름을 입력하세요:', RM[S.routineId]?.part+' 커스텀');
   if(!name||!name.trim())return;
-  // 현재 종목 + 현재 화면의 세트/중량/횟수를 통째로 저장
   const exs=S.data.exercises[S.routineId]||[];
   const snapshot=exs.map(ex=>{
     const sets=S.wRes[ex.id]||[];
-    return Object.assign({},ex,{
-      _savedSets: sets.map(s=>({w:s.w,r:s.r}))
-    });
+    return Object.assign({},ex,{_savedSets:sets.map(s=>({w:s.w,r:s.r}))});
   });
   if(!S.data.savedRoutines)S.data.savedRoutines={};
   S.data.savedRoutines[name.trim()]={
@@ -437,7 +438,29 @@ function saveRoutine(){
     savedAt:new Date().toISOString()
   };
   save(S.data);
-  alert('"'+name.trim()+'" 루틴이 저장됐어요. 다음에 불러오기에서 사용할 수 있어요.');
+  alert('"'+name.trim()+'" 루틴이 저장됐어요.');
+}
+
+// 현재 화면 값을 고정 루틴 기본값으로 저장
+function saveAsDefault(){
+  if(!confirm('현재 화면의 무게/횟수/세트 구성을 이 루틴의 기본값으로 저장할까요?\n다음에 이 루틴을 열면 지금 설정이 기본으로 나와요.'))return;
+  const exs=S.data.exercises[S.routineId]||[];
+  exs.forEach(ex=>{
+    const sets=S.wRes[ex.id]||[];
+    if(!sets.length)return;
+    if(ex.bw)return;
+    // 첫 세트와 마지막 세트 중량으로 baseW/targetW 갱신
+    const ws=sets.map(s=>parseFloat(s.w)||0).filter(w=>w>0);
+    if(!ws.length)return;
+    ex.baseW=ws[0];
+    ex.targetW=ws[ws.length-1];
+    ex.sets=sets.length;
+    ex.reps=parseInt(sets[0]?.r)||ex.reps;
+    // targetCount: 마지막 세트가 targetW인 세트 수
+    ex.targetCount=ws.filter(w=>w>=ex.targetW).length||1;
+  });
+  save(S.data);
+  alert('기본값으로 저장됐어요. 다음에 이 루틴을 열면 현재 설정이 기본으로 나와요.');
 }
 
 function openLoadRoutine(){
@@ -446,16 +469,16 @@ function openLoadRoutine(){
   const keys=Object.keys(sr);
   let listH='';
   if(keys.length===0){
-    listH='<div style="text-align:center;padding:32px;color:var(--text3);font-size:13px">저장된 루틴이 없어요.<br>운동 화면에서 "현재 루틴 저장"을 먼저 해주세요.</div>';
+    listH='<div style="text-align:center;padding:32px;color:var(--text3);font-size:13px">저장된 루틴이 없어요.<br>운동 화면에서 "루틴 저장"을 먼저 해주세요.</div>';
   }else{
     listH=keys.map(k=>{
       const r=sr[k];
       return '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">'
-        +'<button onclick="loadRoutine(\''+esc(k).replace(/'/g,"\\'")+'\')" style="flex:1;text-align:left;padding:12px;border:1px solid var(--border);background:rgba(10,10,10,.6);border-radius:10px;color:var(--text)">'
+        +'<button data-load="'+esc(k)+'" style="flex:1;text-align:left;padding:12px;border:1px solid var(--border);background:rgba(10,10,10,.6);border-radius:10px;color:var(--text)">'
         +'<div style="font-size:14px;font-weight:600">'+esc(k)+'</div>'
         +'<div style="font-size:11px;color:var(--text3);margin-top:2px">'+esc(r.part||'')+' · 종목 '+(r.exercises?.length||0)+'개</div>'
         +'</button>'
-        +'<button onclick="delRoutine(\''+esc(k).replace(/'/g,"\\'")+'\')" style="width:38px;height:38px;border:1px solid var(--rose-bd);background:var(--rose-dim);color:var(--rose);border-radius:8px;font-size:14px">🗑</button>'
+        +'<button data-del="'+esc(k)+'" style="width:38px;height:38px;border:1px solid var(--rose-bd);background:var(--rose-dim);color:var(--rose);border-radius:8px;font-size:14px">🗑</button>'
         +'</div>';
     }).join('');
   }
@@ -466,11 +489,18 @@ function openLoadRoutine(){
     +'<div class="handle"></div>'
     +'<div style="padding:12px 20px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between">'
     +'<span style="font-weight:700;font-size:16px">저장된 루틴 불러오기</span>'
-    +'<button onclick="document.getElementById(\'lr-ov\').remove()" style="background:none;border:none;color:var(--text2);font-size:22px;line-height:1">×</button>'
+    +'<button id="lr-close" style="background:none;border:none;color:var(--text2);font-size:22px;line-height:1">×</button>'
     +'</div>'
     +'<div style="flex:1;overflow-y:auto;padding:16px 20px">'+listH+'</div>'
     +'</div>';
   document.body.appendChild(div);
+  div.querySelector('#lr-close').onclick=function(){div.remove();};
+  div.querySelectorAll('[data-load]').forEach(function(btn){
+    btn.onclick=function(){loadRoutine(this.dataset.load);};
+  });
+  div.querySelectorAll('[data-del]').forEach(function(btn){
+    btn.onclick=function(){delRoutine(this.dataset.del);};
+  });
 }
 
 function loadRoutine(name){
@@ -971,10 +1001,11 @@ function vWorkout(){
     +'<button onclick="saveRoutine()" style="flex:1;padding:10px;border:1px solid var(--border);background:var(--bg2);color:var(--text2);border-radius:10px;font-size:12px;font-weight:600">💾 루틴 저장</button>'
     +'<button onclick="openLoadRoutine()" style="flex:1;padding:10px;border:1px solid var(--border);background:var(--bg2);color:var(--text2);border-radius:10px;font-size:12px;font-weight:600">📂 루틴 불러오기</button>'
     +'</div>'
-    +'<div style="display:flex;gap:8px;margin-top:8px">'
+    +'<div style="display:flex;gap:8px;margin-bottom:8px">'
     +'<button onclick="openAddEx()" style="flex:1;padding:10px;border:1px solid var(--border);background:var(--bg2);color:var(--text2);border-radius:10px;font-size:12px;font-weight:600">✏️ 종목 직접 추가</button>'
     +'<button onclick="openExLib()" style="flex:1;padding:10px;border:1px solid var(--border);background:var(--bg2);color:var(--text2);border-radius:10px;font-size:12px;font-weight:600">📂 종목 불러오기</button>'
     +'</div>'
+    +'<button onclick="saveAsDefault()" style="width:100%;padding:10px;border:1px solid var(--lime-bd);background:rgba(163,230,53,.08);color:var(--lime);border-radius:10px;font-size:12px;font-weight:600">📌 현재 설정을 기본값으로 저장</button>'
     +'</div>'
     // 일시정지 오버레이 — 저장+일시정지만
     +'<div id="pause-ov" class="overlay" style="display:none" onclick="hidePause()">'
