@@ -383,9 +383,49 @@ function openExLib(){
 function addExFromLib(name){
   const se=S.data.savedExercises||{};
   const lib=se[name]; if(!lib)return;
-  // 새 ID로 종목 생성
+  const exs=S.data.exercises[S.routineId]||[];
+
+  // 같은 이름의 종목이 루틴에 이미 있으면 → 동기화 (설정만 덮어쓰고 ID 유지)
+  const existing=exs.find(e=>e.name===lib.name);
+  if(existing){
+    existing.sets=lib.sets||existing.sets;
+    existing.reps=lib.reps||existing.reps;
+    existing.baseW=lib.baseW!=null?lib.baseW:existing.baseW;
+    existing.targetW=lib.targetW!=null?lib.targetW:existing.targetW;
+    existing.targetCount=lib.targetCount||existing.targetCount;
+    existing.machine=lib.machine||existing.machine;
+    existing.sub=lib.sub||existing.sub;
+    // 세트값도 갱신
+    if(lib._savedSets&&lib._savedSets.length){
+      S.wRes[existing.id]=lib._savedSets.map(s=>({w:s.w,r:s.r,done:false}));
+    }else{
+      const p=plan(existing);
+      S.wRes[existing.id]=p.map(w=>({w:String(w),r:String(existing.reps),done:false}));
+    }
+    S.wExp=existing.id;
+    save(S.data);
+    const o=document.getElementById('el-ov'); if(o)o.remove();
+    reRenderExList(); updSaveBtn();
+    return;
+  }
+
+  // 없으면 새 종목 추가 — 단, 이전 기록과 연결 위해 세션에서 같은 이름 ID 검색
+  // 같은 이름으로 기록된 적 있는 종목 ID 찾기 (기록 연속성)
+  let reuseId=null;
+  for(const sess of S.data.sessions){
+    if(sess.routineId!==S.routineId)continue;
+    const allExIds=Object.keys(sess.results||{});
+    // 해당 루틴의 이전 운동 데이터에서 이름 매칭
+    const prevExs=S.data.exercises[S.routineId]||[];
+    for(const eid of allExIds){
+      const prevEx=prevExs.find(e=>e.id===eid);
+      if(prevEx&&prevEx.name===lib.name){reuseId=eid;break;}
+    }
+    if(reuseId)break;
+  }
+
   const newEx={
-    id:'cust_'+Date.now(),
+    id: reuseId||('cust_'+Date.now()),
     name:lib.name,
     machine:lib.machine,
     sub:lib.sub,
@@ -399,9 +439,7 @@ function addExFromLib(name){
     drop:lib.drop,
     fin:lib.fin
   };
-  if(!S.data.exercises[S.routineId])S.data.exercises[S.routineId]=[];
   S.data.exercises[S.routineId].push(newEx);
-  // 저장된 세트값 복원
   if(lib._savedSets&&lib._savedSets.length){
     S.wRes[newEx.id]=lib._savedSets.map(s=>({w:s.w,r:s.r,done:false}));
   }else{
@@ -411,7 +449,7 @@ function addExFromLib(name){
   S.wExp=newEx.id;
   save(S.data);
   const o=document.getElementById('el-ov'); if(o)o.remove();
-  reRenderExList(); updCount(); updSaveBtn();
+  reRenderExList(); updSaveBtn();
 }
 
 function delSavedEx(name){
@@ -835,8 +873,19 @@ function mkEx(ex,idx,lastSess,isA){
     .filter(s=>s.routineId===S.routineId)
     .sort((a,b)=>new Date(b.date)-new Date(a.date));
 
-  // 원래 종목 기록: swap 없이 진행한 세션
-  const origSess=allSessions.find(s=>s.results?.[ex.id]&&!s.swaps?.[ex.id]);
+  // 원래 종목 기록: swap 없이 진행한 세션 (ID 또는 같은 이름으로)
+  const origSess=allSessions.find(s=>{
+    if(!s.results?.[ex.id])return false;
+    if(s.swaps?.[ex.id])return false;
+    return true;
+  })||allSessions.find(s=>{
+    // ID가 다르더라도 같은 이름의 종목 기록 찾기 (라이브러리 불러오기 연속성)
+    const matchId=Object.keys(s.results||{}).find(eid=>{
+      const exData=S.data.exercises[S.routineId]?.find(e=>e.id===eid);
+      return exData&&exData.name===ex.name&&!s.swaps?.[eid];
+    });
+    return !!matchId;
+  });
   // 대체 종목 기록: 현재 swap 이름과 일치하는 대체 기록
   const swapSess=swap?allSessions.find(s=>s.swaps?.[ex.id]?.name===swap.name&&s.results?.[ex.id]):null;
 
@@ -881,28 +930,29 @@ function mkEx(ex,idx,lastSess,isA){
 
   const sm=sets.map(s=>ex.bw?'체중':s.w).join('·')+' × '+(sets[0]?.r??ex.reps);
   return '<div id="ex-'+ex.id+'" style="background:var(--bg2);border:1px solid '+bdColor+';border-radius:12px;margin-bottom:10px">'
-    +'<div style="display:flex;align-items:center;padding:12px 16px;gap:4px">'
-    +'<button onclick="togExp(\''+ex.id+'\')" style="flex:1;display:flex;align-items:center;gap:12px;background:none;border:none;text-align:left">'
+    +'<div style="display:flex;align-items:center;padding:10px 12px;gap:2px;overflow:hidden">'
+    // 번호 뱃지
     +'<div style="width:28px;height:28px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;font-family:var(--mono);background:'+(allDone?acSol:'var(--bg3)')+';color:'+(allDone?'#0a0a0a':'var(--text3)')+';flex-shrink:0">'+(allDone?'✓':String(idx+1).padStart(2,'0'))+'</div>'
-    +'<div style="flex:1;min-width:0">'
-    +'<div style="font-size:14px;font-weight:600;display:flex;align-items:center;gap:6px;flex-wrap:wrap">'
-    +'<span id="en-'+ex.id+'" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text)">'+esc(dname)+'</span>'
-    +(swap?'<span id="sb-'+ex.id+'" class="badge badge-swap">대체</span>':'<span id="sb-'+ex.id+'" class="badge badge-swap" style="display:none">대체</span>')
-    +(ex.drop&&!swap?'<span class="badge badge-drop">DROP</span>':'')
-    +(ex.fin&&!swap?'<span class="badge badge-fin">마무리</span>':'')
+    // 이름+요약 (flex:1, min-width:0 으로 넘침 방지)
+    +'<button onclick="togExp(\''+ex.id+'\')" style="flex:1;min-width:0;display:flex;flex-direction:column;align-items:flex-start;gap:2px;background:none;border:none;text-align:left;padding:0 6px;overflow:hidden">'
+    +'<div style="width:100%;font-size:14px;font-weight:600;display:flex;align-items:center;gap:4px;overflow:hidden">'
+    +'<span id="en-'+ex.id+'" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text);min-width:0;flex:1">'+esc(dname)+'</span>'
+    +(swap?'<span id="sb-'+ex.id+'" class="badge badge-swap" style="flex-shrink:0">대체</span>':'<span id="sb-'+ex.id+'" class="badge badge-swap" style="display:none;flex-shrink:0">대체</span>')
+    +(ex.drop&&!swap?'<span class="badge badge-drop" style="flex-shrink:0">DROP</span>':'')
+    +(ex.fin&&!swap?'<span class="badge badge-fin" style="flex-shrink:0">마무리</span>':'')
     +'</div>'
-    +'<div id="sm-'+ex.id+'" style="font-size:11px;color:var(--text3);margin-top:2px;font-family:var(--mono)">'
-    +(!swap&&ex.machine?'<span style="margin-right:6px">· '+esc(ex.machine)+'</span>':'')
-    +(!swap&&ex.sub?'<span style="margin-right:6px">'+esc(ex.sub)+'</span>':'')
+    +'<div id="sm-'+ex.id+'" style="font-size:11px;color:var(--text3);font-family:var(--mono);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;width:100%">'
+    +(!swap&&ex.machine?'· '+esc(ex.machine)+' ':'')
+    +(!swap&&ex.sub?esc(ex.sub)+' ':'')
     +sm+'</div>'
-    +'</div>'
     +'</button>'
-    +'<button id="sc-'+ex.id+'" onclick="openSwap(\''+ex.id+'\')" style="background:none;border:none;padding:8px;color:'+(swap?'var(--amber)':'var(--text3)')+';font-size:16px">⇄</button>'
-    +'<div style="display:flex;flex-direction:column;gap:1px">'
-    +'<button onclick="moveEx(\''+ex.id+'\',\'up\')" style="background:none;border:none;padding:3px 6px;color:var(--text3);font-size:11px;line-height:1" '+(idx===0?'disabled style="opacity:.2"':'')+'>▲</button>'
-    +'<button onclick="moveEx(\''+ex.id+'\',\'down\')" style="background:none;border:none;padding:3px 6px;color:var(--text3);font-size:11px;line-height:1">▼</button>'
+    // 우측 버튼들 (flex-shrink:0 으로 고정)
+    +'<button id="sc-'+ex.id+'" onclick="openSwap(\''+ex.id+'\')" style="flex-shrink:0;background:none;border:none;padding:6px;color:'+(swap?'var(--amber)':'var(--text3)')+';font-size:15px">⇄</button>'
+    +'<div style="flex-shrink:0;display:flex;flex-direction:column;gap:1px">'
+    +'<button onclick="moveEx(\''+ex.id+'\',\'up\')" style="background:none;border:none;padding:2px 5px;color:var(--text3);font-size:10px;line-height:1"'+(idx===0?' disabled':'')+'>'+(idx===0?'<span style="opacity:.2">▲</span>':'▲')+'</button>'
+    +'<button onclick="moveEx(\''+ex.id+'\',\'down\')" style="background:none;border:none;padding:2px 5px;color:var(--text3);font-size:10px;line-height:1">▼</button>'
     +'</div>'
-    +'<button onclick="togExp(\''+ex.id+'\')" style="background:none;border:none;padding:8px;color:var(--text3);display:flex;align-items:center;gap:4px">'
+    +'<button onclick="togExp(\''+ex.id+'\')" style="flex-shrink:0;background:none;border:none;padding:6px;color:var(--text3);display:flex;align-items:center;gap:2px">'
     +'<span id="cnt-'+ex.id+'" style="font-size:10px;font-family:var(--mono)">'+done+'/'+sets.length+'</span>'
     +'<span class="ex-chev" data-id="'+ex.id+'" style="font-size:10px">'+(exp?'▲':'▼')+'</span>'
     +'</button>'
@@ -914,7 +964,11 @@ function mkEx(ex,idx,lastSess,isA){
 // ═══════════════════════════════════
 function vHome(){
   const today=new Date();
-  const wk=S.data.sessions.filter(s=>new Date(s.date).getTime()>=Date.now()-604800000).length;
+  const now=new Date();
+  const dayOfWeek=now.getDay(); // 0=일, 1=월
+  const diffToMon=dayOfWeek===0?6:dayOfWeek-1; // 월요일까지 며칠
+  const monday=new Date(now.getFullYear(),now.getMonth(),now.getDate()-diffToMon,0,0,0,0);
+  const wk=S.data.sessions.filter(s=>new Date(s.date)>=monday).length;
   const lbr={};[...S.data.sessions].sort((a,b)=>new Date(b.date)-new Date(a.date)).forEach(s=>{if(!lbr[s.routineId])lbr[s.routineId]=s;});
   const cards=ROUTINES.filter(r=>r.day===S.tab).map(r=>{
     const last=lbr[r.id];const isA=r.day==='A';const c=isA?'var(--lime)':'var(--amber)';const bg=isA?'var(--lime-dim)':'var(--amber-dim)';
