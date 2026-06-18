@@ -935,8 +935,8 @@ function mkEx(ex,idx,lastSess,isA){
     +'<div style="width:28px;height:28px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;font-family:var(--mono);background:'+(allDone?acSol:'var(--bg3)')+';color:'+(allDone?'#0a0a0a':'var(--text3)')+';flex-shrink:0">'+(allDone?'✓':String(idx+1).padStart(2,'0'))+'</div>'
     // 이름+요약 (flex:1, min-width:0 으로 넘침 방지)
     +'<button onclick="togExp(\''+ex.id+'\')" style="flex:1;min-width:0;display:flex;flex-direction:column;align-items:flex-start;gap:2px;background:none;border:none;text-align:left;padding:0 6px;overflow:hidden">'
-    +'<div style="width:100%;font-size:14px;font-weight:600;display:flex;align-items:center;gap:4px;overflow:hidden">'
-    +'<span id="en-'+ex.id+'" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text);min-width:0;flex:1">'+esc(dname)+'</span>'
+    +'<div style="width:100%;font-size:13px;font-weight:600;display:flex;align-items:'+(exp?'flex-start':'center')+';gap:4px;overflow:hidden;'+(exp?'flex-wrap:wrap':'')+'">'
+    +'<span id="en-'+ex.id+'" style="'+(exp?'white-space:normal;word-break:break-word;':'overflow:hidden;text-overflow:ellipsis;white-space:nowrap;')+'color:var(--text);min-width:0;flex:'+(exp?'1 1 100%':'1')+'">'+esc(dname)+'</span>'
     +(swap?'<span id="sb-'+ex.id+'" class="badge badge-swap" style="flex-shrink:0">대체</span>':'<span id="sb-'+ex.id+'" class="badge badge-swap" style="display:none;flex-shrink:0">대체</span>')
     +(ex.drop&&!swap?'<span class="badge badge-drop" style="flex-shrink:0">DROP</span>':'')
     +(ex.fin&&!swap?'<span class="badge badge-fin" style="flex-shrink:0">마무리</span>':'')
