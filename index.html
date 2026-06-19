@@ -895,8 +895,14 @@ function mkEx(ex,idx,lastSess,isA){
 
   let lastH='';
   if(lr){
-    const p=plan(ex);
-    const items=lr.map((s,i)=>{const ok=!s.fail&&s.weight>=(p[i]??ex.targetW)&&s.reps>=ex.reps;const failed=s.fail;return '<span style="padding:2px 6px;border-radius:4px;font-size:11px;font-family:var(--mono);background:'+(failed?'rgba(251,113,133,.18)':ok?'rgba(110,231,183,.1)':'rgba(251,113,133,.1)')+';color:'+(failed||!ok?'var(--rose)':'var(--emerald)')+'">'+(failed?'✕ ':'')+( ex.bw?s.reps+'회':s.weight+'×'+s.reps)+'</span>';}).join('');
+    const items=lr.map((s,i)=>{
+      const failed=!!s.fail;
+      const ok=!failed&&(s.done!==false);
+      return '<span style="padding:2px 6px;border-radius:4px;font-size:11px;font-family:var(--mono);background:'
+        +(failed?'rgba(251,113,133,.18)':ok?'rgba(110,231,183,.1)':'rgba(251,113,133,.1)')
+        +';color:'+(failed||!ok?'var(--rose)':'var(--emerald)')
+        +'">'+(failed?'✕ ':'')+( ex.bw?s.reps+'회':s.weight+'×'+s.reps)+'</span>';
+    }).join('');
     lastH='<div style="margin:12px 0;padding:8px 12px;background:rgba(10,10,10,.6);border:1px solid rgba(38,38,38,.6);border-radius:8px">'
       +'<div style="font-size:9px;letter-spacing:.2em;color:var(--text3);margin-bottom:6px">'
       +(swap?esc(swap.name)+' 기록':' 지난 기록')+' · '+ago(refSess.date)
